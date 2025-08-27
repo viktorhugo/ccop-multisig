@@ -1,18 +1,12 @@
+import { multiSigABI } from "@/abi/SimpleERC20Multisig";
+import { Address } from "viem";
+
 // Contract configuration
-export const MULTISIG_CONTRACT_ADDRESS = "0x5168f18e89fdd2e88114870d2837c0e31170564a" as const;
+export const MULTISIG_CONTRACT_ADDRESS = "0xcAEe2314fE1b00ec49688317BDFB6C9D662f913b" as Address;
 
 // Import ABI from local file with fallback
 // Users need to copy their compiled ABI to src/abi/SimpleERC20Multisig.json
-let MULTISIG_ABI;
-
-try {
-    // Try to import the user's ABI file
-    MULTISIG_ABI = require('@/abi/SimpleERC20Multisig.json');
-} catch (error) {
-    // Fallback to example ABI if user hasn't copied their file yet
-    console.warn('SimpleERC20Multisig.json not found. Using example ABI. Please copy your contract ABI to src/abi/SimpleERC20Multisig.json');
-    MULTISIG_ABI = require('@/abi/SimpleERC20Multisig.example.json');
-}
+const MULTISIG_ABI = multiSigABI;
 
 export { MULTISIG_ABI };
 

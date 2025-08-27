@@ -55,7 +55,7 @@ function StateDisplay({
     );
 }
 
-export function TransactionsList() {
+export function ProcessComponent() {
     const { transactions, threshold, loading, error, refetch } = useTransactions();
 
     const renderTransactionsContent = () => {
