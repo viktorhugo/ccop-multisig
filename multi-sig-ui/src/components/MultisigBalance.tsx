@@ -1,9 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Address, formatUnits } from 'viem';
-import { publicClient } from '@/lib/viem';
+import { Abi, Address, formatUnits } from 'viem';
+
 import { MULTISIG_CONTRACT_ADDRESS, MULTISIG_ABI } from '@/lib/contract';
+import { watchContractEvent } from '@wagmi/core'
+import { configWss } from '@/config/index-wss';
+import { useReadContract } from 'wagmi';
+import { config } from '@/config';
+import { useNotify } from '@/context/NotifyContext';
+import { BadgeCheck, RefreshCw } from 'lucide-react';
+import { Skeleton } from './ui/skeleton';
 
 
 
@@ -11,144 +18,153 @@ export function MultisigBalance() {
 
     const [balance, setBalance] = useState<string | null>(null);
     const [tokenAddress, setTokenAddress] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { notify } = useNotify();
+
+    // read contract for get the contract balance
+    const { data: tokenBalanceData, isLoading: tokenBalanceLoading, error: tokenBalanceError, refetch: refetchTokenBalance } = useReadContract({
+        abi: MULTISIG_ABI as Abi,
+        address: MULTISIG_CONTRACT_ADDRESS as Address,
+        functionName: "tokenBalance",
+        config,
+    });
+
+    console.log("Token Balance Data:", tokenBalanceData, "Loading:", tokenBalanceLoading, "Error:", tokenBalanceError);
+    
+    // read contract for get address token
+    const { data: tokenData, isLoading: tokenLoading, error: tokenError } = useReadContract({
+        abi: MULTISIG_ABI as Abi,
+        address: MULTISIG_CONTRACT_ADDRESS as Address,
+        functionName: "token",
+        config,
+    });
 
     useEffect(() => {
-        let isMounted = true;
-
-        async function fetchBalance() {
-            try {
-                setLoading(true);
-                setError(null);
-
-                // Wait a bit to ensure client is ready (helps with SSR issues)
-                if (typeof window === 'undefined') {
-                    return; // Skip on server side
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 100));
-
-                // Fetch token balance and token address sequentially to avoid race conditions
-                const tokenBalanceResult = await publicClient.readContract({
-                    address: MULTISIG_CONTRACT_ADDRESS,
-                    abi: MULTISIG_ABI,
-                    functionName: 'tokenBalance',
-                });
-
-                const tokenAddressResult = await publicClient.readContract({
-                    address: MULTISIG_CONTRACT_ADDRESS,
-                    abi: MULTISIG_ABI,
-                    functionName: 'token',
-                });
-
-                if (isMounted) {
-                    const formattedBalance = formatUnits(tokenBalanceResult as bigint, 18);
-                    setBalance(formattedBalance);
-                    setTokenAddress(tokenAddressResult as string);
-                }
-            } catch (err) {
-                console.error('Error fetching balance:', err);
-                if (isMounted) {
-                    setError(err instanceof Error ? err.message : 'Failed to fetch balance');
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
-            }
+        if (tokenBalanceData) {
+            const formattedBalance = formatUnits(tokenBalanceData as bigint, 18);
+            setBalance(formattedBalance);
+        }
+        if (tokenData) {
+            setTokenAddress(tokenData as string);
         }
 
-        // Initial fetch with a small delay to ensure component is mounted
-        const initialTimeout = setTimeout(fetchBalance, 200);
-
-        // Set up polling for balance updates every 10 seconds
-        const interval = setInterval(fetchBalance, 10000);
-
-        return () => {
-            isMounted = false;
-            clearTimeout(initialTimeout);
-            clearInterval(interval);
-        };
-    }, []);
-
-    const refetch = () => {
-        setLoading(true);
-        setError(null);
-    };
-
-    if (loading) {
-        return (
-            <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">Multisig Balance</h3>
-                    <div className="animate-spin w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                </div>
-                <div className="mt-4">
-                    <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 bg-gray-100 rounded mt-2 w-2/3 animate-pulse"></div>
-                </div>
-            </div>
+        // Watch for Deposit events to update balance in real-time
+        const unwatch = watchContractEvent(configWss, 
+                {
+                address: MULTISIG_CONTRACT_ADDRESS as Address,
+                abi: MULTISIG_ABI as Abi,
+                eventName: 'Deposit',
+                batch: true,
+                onLogs: (logs) => {
+                    console.log('New logs Deposit!', logs);
+                    setTimeout(() => {
+                        console.log('Refetching token balance...');
+                        notify('success', 'Deposit detected, balance updated.');
+                        refetchTokenBalance();
+                    }, 1000)
+                },
+            }
         );
+
+        return () => unwatch();
+    }, [refetchTokenBalance, tokenBalanceData, tokenData]);
+
+    const refetchTokenBalanceFunc = async () => {
+        console.log("refetchTokenBalanceFunc called");
+        try {
+            await refetchTokenBalance();
+            notify('success', 'Balance refreshed!');
+        } catch (error) {
+            console.error("Error refetching balance:", error);
+            notify('error', 'Failed to refresh balance.');
+        }
     }
 
-    if (error) {
-        return (
-            <div className="bg-white border border-red-200 rounded-lg p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Multisig Balance</h3>
-                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                </div>
-                <div className="text-red-600 text-sm mb-3">{error}</div>
-                <button
-                    onClick={refetch}
-                    className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
-                >
-                    Retry
-                </button>
-            </div>
-        );
+    if (tokenError) {
+        notify('error', 'Error fetching token address.');
+    }
+
+    if (tokenBalanceError) {
+        notify('error', 'Error fetching token balance.');
     }
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Multisig Balance</h3>
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8.5v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+        <div className="bg-[#202020] border border-[#FBB701]/30 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-[#FBB701]">Multisig Balance</h3>
+                <BadgeCheck size={24} className="text-green-500" />
             </div>
-
-            <div className="space-y-3">
-                {/* Balance Display */}
-                <div>
-                    <div className="text-3xl font-bold text-gray-900">
-                        {parseFloat(balance || '0').toLocaleString()}
-                        <span className="text-lg font-normal text-gray-600 ml-2">Tokens</span>
+            {
+                tokenBalanceLoading ? (
+                    <div className="mb-5">
+                        <Skeleton className="h-[70px] w-[250px] rounded-xl" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-4 w-full mt-2" />
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    // Balance Display
+                    <div className="mb-5">
+                        <div className="text-4xl font-extrabold text-white tracking-tight">
+                            {parseFloat(balance || '0').toLocaleString()}
+                            <span className="font-medium text-2xl text-gray-300 ml-4">cCop</span>
+                        </div>
 
-                {/* Token Address */}
-                <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Token Contract
-                    </label>
-                    <div className="mt-1 text-sm font-mono text-gray-700 bg-gray-50 px-3 py-2 rounded border break-all">
+                        {/* Visual balance indicator (progress-like) */}
+                        <div className="mt-2 w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div
+                            className={`
+                                h-2 rounded-full transition-all duration-500 ${
+                                balance && parseFloat(balance) > 0 ? 'bg-[#1E8847]' : 'bg-gray-500'
+                            }`}
+                            style={{
+                                width: `${Math.min(
+                                    100,
+                                    parseFloat(balance || '0') / 100
+                                )}%`, // simulado
+                            }}
+                        ></div>
+                        </div>
+                    </div>
+                )
+            }
+
+            {
+                tokenLoading ? (
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-[250px] mt-2" />
+                        <Skeleton className="h-8 w-full mt-2" />
+                    </div>
+                ) : (
+                    // Token Address token
+                    <div className="mb-5">
+                        <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                        Token Address
+                        </label>
+                        <div className="mt-1 text-sm font-mono text-gray-100 bg-[#202020]/70 px-3 py-2 rounded-lg border border-gray-600 break-all">
                         {tokenAddress}
+                        </div>
                     </div>
+                )
+            }
+
+            {/* Balance Status Indicator */}
+            <div className="flex items-center justify-between pt-4 border-t border-gray-700">
+                <div
+                className={`flex items-center text-sm font-medium ${
+                    balance && parseFloat(balance) > 0 ? 'text-green-600' : 'text-gray-400'
+                }`}
+                >
+                <div
+                    className={`w-2.5 h-2.5 rounded-full mr-2 animate-pulse ${
+                        balance && parseFloat(balance) > 0 ? 'bg-green-400' : 'bg-gray-500'
+                    }`}
+                ></div>
+                    {balance && parseFloat(balance) > 0 ? 'Funds Available' : 'No Funds'}
                 </div>
 
-                {/* Balance Status Indicator */}
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                    <div className="flex items-center text-sm text-gray-600">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                        {balance && parseFloat(balance) > 0 ? 'Funds Available' : 'No Funds'}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                        Auto-updates every 10s
-                    </div>
+                <div className='cursor-pointer' onClick={refetchTokenBalanceFunc}>
+                    <RefreshCw size={24} className="text-[#FBB701]" />
                 </div>
             </div>
         </div>

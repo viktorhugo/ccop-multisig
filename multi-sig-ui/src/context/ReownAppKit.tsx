@@ -39,6 +39,7 @@ createAppKit({
     },
     themeVariables: {
         '--w3m-accent': '#000000',
+        '--w3m-font-family': 'var(--font-geist-sans)',
     }
 });
 

@@ -2,7 +2,7 @@ import { multiSigABI } from "@/abi/SimpleERC20Multisig";
 import { Address } from "viem";
 
 // Contract configuration
-export const MULTISIG_CONTRACT_ADDRESS = "0xcAEe2314fE1b00ec49688317BDFB6C9D662f913b" as Address;
+export const MULTISIG_CONTRACT_ADDRESS = "0x634dCe9E1F51dC03aE6446eCEA862b941f1016CE" as Address;
 
 // Import ABI from local file with fallback
 // Users need to copy their compiled ABI to src/abi/SimpleERC20Multisig.json

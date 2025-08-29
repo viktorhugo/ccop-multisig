@@ -1,30 +1,4 @@
-This is a [Next.js](https://nextjs.org) project that provides a user interface for interacting with a multisig wallet smart contract.
-
-## Setup Instructions
-
-### 1. Copy Contract ABI
-
-Before running the application, you need to copy your deployed contract's ABI:
-
-```bash
-# Copy the ABI from your contract compilation output
-cp ../multi-sig/out/SimpleERC20Multisig.sol/SimpleERC20Multisig.json src/abi/SimpleERC20Multisig.json
-```
-
-The UI will use the example ABI as a fallback if you haven't copied your contract's ABI yet, but for proper functionality with your deployed contract, you should copy the actual ABI.
-
-### 2. Update Contract Address
-
-Update the contract address in `src/lib/contract.ts` to match your deployed contract address.
-
-### 3. Wallet Connection
-
-The UI includes wallet connection functionality. Users can:
-- Connect their Web3 wallet (MetaMask, etc.)
-- View their connected wallet address
-- Disconnect when needed
-
-Make sure you have a Web3 wallet installed in your browser before using the application.
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 

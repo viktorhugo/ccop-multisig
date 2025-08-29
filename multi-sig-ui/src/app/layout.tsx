@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ContextReownAppKitProvider from "@/context/ReownAppKit";
 import { headers } from "next/headers";
+import { NotifyProvider } from "@/context/NotifyContext";
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +36,10 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ContextReownAppKitProvider cookies={cookies}>
-          {children}
+          <NotifyProvider>
+            <Toaster closeButton />
+            {children}
+          </NotifyProvider>
         </ContextReownAppKitProvider>
       </body>
     </html>

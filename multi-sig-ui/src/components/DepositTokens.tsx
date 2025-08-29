@@ -1,68 +1,73 @@
 'use client';
 
 import { useState } from 'react';
-import { parseUnits } from 'viem';
+import { Abi, Address, parseUnits } from 'viem';
 import { getWalletClient, publicClient } from '@/lib/viem';
 import { MULTISIG_CONTRACT_ADDRESS, MULTISIG_ABI } from '@/lib/contract';
+import { cCOP_ABI } from '@/abi/cCOPABI';
+import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { config } from '@/config';
+import { useNotify } from '@/context/NotifyContext';
 
-interface DepositTokensProps {
-    onTokensDeposited?: () => void;
-}
+export function DepositTokens() {
 
-// Basic ERC20 ABI for approve function
-const ERC20_ABI = [
-    {
-        "type": "function",
-        "name": "approve",
-        "inputs": [
-            { "name": "spender", "type": "address" },
-            { "name": "amount", "type": "uint256" }
-        ],
-        "outputs": [{ "name": "", "type": "bool" }],
-        "stateMutability": "nonpayable"
-    },
-    {
-        "type": "function",
-        "name": "allowance",
-        "inputs": [
-            { "name": "owner", "type": "address" },
-            { "name": "spender", "type": "address" }
-        ],
-        "outputs": [{ "name": "", "type": "uint256" }],
-        "stateMutability": "view"
-    }
-] as const;
+    const { address: userAddress } = useAccount();
+    const { notify } = useNotify();
+    
 
-export function DepositTokens({ onTokensDeposited }: DepositTokensProps) {
     const [amount, setAmount] = useState('');
     const [isDepositing, setIsDepositing] = useState(false);
     const [isApproving, setIsApproving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState(false);
     const [needsApproval, setNeedsApproval] = useState(false);
 
     const resetForm = () => {
         setAmount('');
         setError(null);
-        setSuccess(false);
         setNeedsApproval(false);
     };
 
-    const checkAllowance = async (userAddress: string, tokenAddress: string, amountInWei: bigint) => {
-        try {
-            const allowance = await publicClient.readContract({
-                address: tokenAddress as `0x${string}`,
-                abi: ERC20_ABI,
-                functionName: 'allowance',
-                args: [userAddress as `0x${string}`, MULTISIG_CONTRACT_ADDRESS],
-            }) as bigint;
+    // read contract for get address token
+    const { data: tokenAddress, isLoading: tokenAddressLoading, error: tokenAddressError } = useReadContract({
+        abi: MULTISIG_ABI as Abi,
+        address: MULTISIG_CONTRACT_ADDRESS as Address,
+        functionName: "token",
+        config,
+    });
+    console.log("Token Address Data:", tokenAddress, "Loading:", tokenAddressLoading, "Error:", tokenAddressError);
 
-            return allowance >= amountInWei;
-        } catch (err) {
-            console.error('Error checking allowance:', err);
-            return false;
-        }
+    // read contract for get address token
+    const { data: allowance, isLoading: allowanceLoading, error: allowanceError, refetch: refetchAllowance } = useReadContract({
+        abi: cCOP_ABI,
+        address: tokenAddress as Address,
+        functionName: 'allowance',
+        args: [userAddress as Address, MULTISIG_CONTRACT_ADDRESS],
+        config,
+    });
+    console.log("Allowance Data:", allowance, "Loading:", allowanceLoading, "Error:", allowanceError);
+
+    // For deposit on the vault
+    const {
+        data: depositHash,
+        isPending: isDepositPending,
+        writeContract: makeDeposit,
+        status: depositStatus,
+        error: depositError,
+    } = useWriteContract();
+
+    const { isSuccess: isDepositSuccess } = useWaitForTransactionReceipt({
+        hash: depositHash,
+    })
+    
+
+    const checkAllowance = async (amountInWei: bigint) => {
+        return allowance as bigint  >= amountInWei;
     };
+
+    const refetchAllowanceFunc = async () => {
+        await refetchAllowance();
+    }
+
 
     const handleApprove = async () => {
         setError(null);
@@ -76,9 +81,8 @@ export function DepositTokens({ onTokensDeposited }: DepositTokensProps) {
 
             const amountInWei = parseUnits(amount, 18);
             const walletClient = getWalletClient();
-            const [account] = await walletClient.getAddresses();
 
-            if (!account) {
+            if (!userAddress) {
                 throw new Error('Please connect your wallet first');
             }
 
@@ -91,11 +95,11 @@ export function DepositTokens({ onTokensDeposited }: DepositTokensProps) {
 
             // Approve the multisig contract to spend tokens
             const hash = await walletClient.writeContract({
-                address: tokenAddress as `0x${string}`,
-                abi: ERC20_ABI,
+                address: tokenAddress as Address,
+                abi: cCOP_ABI,
                 functionName: 'approve',
                 args: [MULTISIG_CONTRACT_ADDRESS, amountInWei],
-                account,
+                account: userAddress as Address,
             });
 
             console.log('Approval transaction hash:', hash);
@@ -111,14 +115,11 @@ export function DepositTokens({ onTokensDeposited }: DepositTokensProps) {
     const handleDeposit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        setSuccess(false);
         setIsDepositing(true);
 
         try {
             // Validation
-            if (!amount) {
-                throw new Error('Please enter an amount');
-            }
+            if (!amount) { throw new Error('Please enter an amount');}
 
             const amountValue = parseFloat(amount);
             if (isNaN(amountValue) || amountValue <= 0) {
@@ -126,52 +127,35 @@ export function DepositTokens({ onTokensDeposited }: DepositTokensProps) {
             }
 
             const amountInWei = parseUnits(amount, 18);
-            const walletClient = getWalletClient();
-            const [account] = await walletClient.getAddresses();
 
-            if (!account) {
+            if (!userAddress) {
                 throw new Error('Please connect your wallet first');
             }
 
-            // Get token address from contract
-            const tokenAddress = await publicClient.readContract({
-                address: MULTISIG_CONTRACT_ADDRESS,
-                abi: MULTISIG_ABI,
-                functionName: 'token',
-            }) as string;
-
             // Check if we have enough allowance
-            const hasAllowance = await checkAllowance(account, tokenAddress, amountInWei);
+            await refetchAllowanceFunc();
 
-            if (!hasAllowance) {
+            if (!checkAllowance(amountInWei)) {
                 setNeedsApproval(true);
                 setIsDepositing(false);
                 return;
             }
 
             // Deposit tokens to the contract
-            const hash = await walletClient.writeContract({
+            await makeDeposit({
                 address: MULTISIG_CONTRACT_ADDRESS,
                 abi: MULTISIG_ABI,
                 functionName: 'depositTokens',
                 args: [amountInWei],
-                account,
+                account: userAddress as Address,
             });
-
-            setSuccess(true);
-            resetForm();
-
-            // Call the callback to refresh the balance
-            if (onTokensDeposited) {
-                onTokensDeposited();
+            //IF success
+            if (isDepositSuccess) {
+                resetForm();
+                notify('success', 'Tokens deposited successfully!');
             }
 
-            // Auto-clear success message after 3 seconds
-            setTimeout(() => {
-                setSuccess(false);
-            }, 3000);
-
-            console.log('Deposit transaction hash:', hash);
+            console.log('Deposit transaction hash:', depositHash);
         } catch (err) {
             console.error('Error depositing tokens:', err);
             setError(err instanceof Error ? err.message : 'Failed to deposit tokens');
@@ -180,7 +164,9 @@ export function DepositTokens({ onTokensDeposited }: DepositTokensProps) {
         }
     };
 
+    
     return (
+        
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Deposit Tokens</h3>
@@ -191,16 +177,18 @@ export function DepositTokens({ onTokensDeposited }: DepositTokensProps) {
 
             <form onSubmit={handleDeposit} className="space-y-4">
                 {/* Success Message */}
-                {success && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="flex items-center text-green-800 text-sm">
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            Tokens deposited successfully!
-                        </div>
-                    </div>
-                )}
+                {
+                    // success && (
+                    //     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    //         <div className="flex items-center text-green-800 text-sm">
+                    //             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    //                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    //             </svg>
+                    //             Tokens deposited successfully!
+                    //         </div>
+                    //     </div>
+                    // )
+                }
 
                 {/* Error Message */}
                 {error && (

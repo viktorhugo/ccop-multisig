@@ -2,9 +2,9 @@ export const multiSigABI = [
     {
         "type": "constructor",
         "inputs": [
-            { "name": "_owners", "type": "address[]", "internalType": "address[]" },
-            { "name": "_threshold", "type": "uint256", "internalType": "uint256" },
-            { "name": "_token", "type": "address", "internalType": "address" }
+        { "name": "_owners", "type": "address[]", "internalType": "address[]" },
+        { "name": "_threshold", "type": "uint256", "internalType": "uint256" },
+        { "name": "_token", "type": "address", "internalType": "address" }
         ],
         "stateMutability": "nonpayable"
     },
@@ -12,7 +12,7 @@ export const multiSigABI = [
         "type": "function",
         "name": "confirmTransaction",
         "inputs": [
-            { "name": "txId", "type": "uint256", "internalType": "uint256" }
+        { "name": "txId", "type": "uint256", "internalType": "uint256" }
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
@@ -21,7 +21,7 @@ export const multiSigABI = [
         "type": "function",
         "name": "depositTokens",
         "inputs": [
-            { "name": "amount", "type": "uint256", "internalType": "uint256" }
+        { "name": "amount", "type": "uint256", "internalType": "uint256" }
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
@@ -30,7 +30,7 @@ export const multiSigABI = [
         "type": "function",
         "name": "executeTransaction",
         "inputs": [
-            { "name": "txId", "type": "uint256", "internalType": "uint256" }
+        { "name": "txId", "type": "uint256", "internalType": "uint256" }
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
@@ -39,8 +39,8 @@ export const multiSigABI = [
         "type": "function",
         "name": "hasConfirmed",
         "inputs": [
-            { "name": "", "type": "uint256", "internalType": "uint256" },
-            { "name": "", "type": "address", "internalType": "address" }
+        { "name": "", "type": "uint256", "internalType": "uint256" },
+        { "name": "", "type": "address", "internalType": "address" }
         ],
         "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
         "stateMutability": "view"
@@ -63,11 +63,11 @@ export const multiSigABI = [
         "type": "function",
         "name": "submitTransaction",
         "inputs": [
-            { "name": "to", "type": "address", "internalType": "address" },
-            { "name": "amount", "type": "uint256", "internalType": "uint256" }
+        { "name": "to", "type": "address", "internalType": "address" },
+        { "name": "amount", "type": "uint256", "internalType": "uint256" }
         ],
         "outputs": [
-            { "name": "txId", "type": "uint256", "internalType": "uint256" }
+        { "name": "txId", "type": "uint256", "internalType": "uint256" }
         ],
         "stateMutability": "nonpayable"
     },
@@ -97,15 +97,103 @@ export const multiSigABI = [
         "name": "transactions",
         "inputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
         "outputs": [
-            { "name": "to", "type": "address", "internalType": "address" },
-            { "name": "amount", "type": "uint256", "internalType": "uint256" },
-            { "name": "executed", "type": "bool", "internalType": "bool" },
-            {
-                "name": "confirmations",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
+        { "name": "to", "type": "address", "internalType": "address" },
+        { "name": "amount", "type": "uint256", "internalType": "uint256" },
+        { "name": "executed", "type": "bool", "internalType": "bool" },
+        {
+            "name": "confirmations",
+            "type": "uint256",
+            "internalType": "uint256"
+        }
         ],
         "stateMutability": "view"
+    },
+    {
+        "type": "event",
+        "name": "ConfirmTransaction",
+        "inputs": [
+        {
+            "name": "owner",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+        },
+        {
+            "name": "txId",
+            "type": "uint256",
+            "indexed": true,
+            "internalType": "uint256"
+        }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "Deposit",
+        "inputs": [
+        {
+            "name": "sender",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+        },
+        {
+            "name": "amount",
+            "type": "uint256",
+            "indexed": false,
+            "internalType": "uint256"
+        }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "ExecuteTransaction",
+        "inputs": [
+        {
+            "name": "owner",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+        },
+        {
+            "name": "txId",
+            "type": "uint256",
+            "indexed": true,
+            "internalType": "uint256"
+        }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "SubmitTransaction",
+        "inputs": [
+        {
+            "name": "owner",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+        },
+        {
+            "name": "txId",
+            "type": "uint256",
+            "indexed": true,
+            "internalType": "uint256"
+        },
+        {
+            "name": "to",
+            "type": "address",
+            "indexed": true,
+            "internalType": "address"
+        },
+        {
+            "name": "amount",
+            "type": "uint256",
+            "indexed": false,
+            "internalType": "uint256"
+        }
+        ],
+        "anonymous": false
     }
 ]

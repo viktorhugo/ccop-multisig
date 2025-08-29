@@ -97,11 +97,11 @@ export function useTransactions() {
         fetchTransactions();
 
         // Set up polling for new transactions every 10 seconds
-        const interval = setInterval(fetchTransactions, 10000);
+        // const interval = setInterval(fetchTransactions, 10000);
 
         return () => {
             isMounted = false;
-            clearInterval(interval);
+            // clearInterval(interval);
         };
     }, []);
 

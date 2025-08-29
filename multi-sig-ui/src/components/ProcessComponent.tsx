@@ -141,7 +141,7 @@ export function ProcessComponent() {
 
             {/* Middle Row: Deposit and Submit Transaction */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <DepositTokens onTokensDeposited={refetch} />
+                <DepositTokens />
                 <SubmitTransaction onTransactionSubmitted={refetch} />
             </div>
 
