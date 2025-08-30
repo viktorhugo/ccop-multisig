@@ -12,11 +12,8 @@ Welcome to the CCOP Multi-Sig project, a comprehensive, decentralized applicatio
 ## Screen
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/viktorhugo/ccop-multisig/refs/heads/master/multi-sig-ui/public/dapp-screenshot.webp" alt="Time-Lock Vault dApp Screenshot" width="700">
+  <img src="https://github.com/viktorhugo/ccop-multisig/blob/main/multi-sig-ui/public/dapp-screenshot.webp?raw=true" alt="Time-Lock Vault dApp Screenshot" width="900">
 </p>
-
-![CCOP Multi-Sig Animated Demo](https://user-images.githubusercontent.com/1234567/123456789-placeholder.gif)
-*(Replace this with your actual animated GIF)*
 
 ---
 
