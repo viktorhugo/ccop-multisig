@@ -11,7 +11,7 @@ export default function Home() {
   
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-[#9A9A9A] flex flex-col">
       {/* Header */}
       <Navbar />
 

@@ -1,9 +1,9 @@
-import { MULTISIG_CONTRACT_ADDRESS } from '@/lib/contract'
-import React from 'react'
+import { MULTISIG_CONTRACT_ADDRESS } from '@/lib/contract';
+import React from 'react';
 
 export const Navbar = () => {
 return (
-        <header className="bg-[#202020] shadow-sm border-b rounded-2xl m-4">
+        <header className="bg-[#202020] shadow-xl shadow-gray-600 rounded-xl m-4">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                 <div>

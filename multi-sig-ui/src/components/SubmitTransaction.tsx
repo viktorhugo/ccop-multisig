@@ -1,15 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { parseUnits, isAddress } from 'viem';
-import { getWalletClient } from '@/lib/viem';
+import { parseUnits, isAddress, Address } from 'viem';
 import { MULTISIG_CONTRACT_ADDRESS, MULTISIG_ABI } from '@/lib/contract';
+import { AlertTriangle, BanknoteArrowUp, CheckCircle, Info, Loader, Send } from 'lucide-react';
+import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 
-interface SubmitTransactionProps {
-    onTransactionSubmitted?: () => void;
-}
 
-export function SubmitTransaction({ onTransactionSubmitted }: SubmitTransactionProps) {
+export function SubmitTransaction() {
+    const { address: userAddress } = useAccount();
     const [formData, setFormData] = useState({
         recipient: '',
         amount: '',
@@ -20,9 +19,22 @@ export function SubmitTransaction({ onTransactionSubmitted }: SubmitTransactionP
 
     const resetForm = () => {
         setFormData({ recipient: '', amount: '' });
-        setError(null);
-        setSuccess(false);
+        resetSubmitTransaction();
     };
+
+    // For submitTransaction on the multisig contract
+    const {
+        data: submitTransactionHash,
+        writeContract: submitTransaction,
+        status: submitTransactionStatus,
+        error: submitTransactionError,
+        reset: resetSubmitTransaction,
+    } = useWriteContract();
+
+    const { isSuccess: isSubmitTransactionSuccess } = useWaitForTransactionReceipt({
+        hash: submitTransactionHash,
+    })
+    console.log("Submit Transaction:", submitTransactionStatus, "Error:", submitTransactionError);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -48,84 +60,69 @@ export function SubmitTransaction({ onTransactionSubmitted }: SubmitTransactionP
             // Convert amount to wei (assuming 18 decimals)
             const amountInWei = parseUnits(formData.amount, 18);
 
-            // Get wallet client
-            const walletClient = getWalletClient();
-
-            // Get the user's account
-            const [account] = await walletClient.getAddresses();
-            if (!account) {
-                throw new Error('Please connect your wallet first');
-            }
-
             // Submit transaction to the contract
-            const hash = await walletClient.writeContract({
+            await submitTransaction({
                 address: MULTISIG_CONTRACT_ADDRESS,
                 abi: MULTISIG_ABI,
                 functionName: 'submitTransaction',
-                args: [formData.recipient as `0x${string}`, amountInWei],
-                account,
+                args: [formData.recipient as Address, amountInWei],
+                account: userAddress,
             });
 
-            setSuccess(true);
-            resetForm();
-
-            // Call the callback to refresh the transactions list
-            if (onTransactionSubmitted) {
-                onTransactionSubmitted();
-            }
-
-            // Auto-clear success message after 3 seconds
-            setTimeout(() => {
-                setSuccess(false);
-            }, 3000);
-
-            console.log('Transaction submitted with hash:', hash);
         } catch (err) {
             console.error('Error submitting transaction:', err);
             setError(err instanceof Error ? err.message : 'Failed to submit transaction');
+            setTimeout(() => setError(null), 5000); // Auto-clear error
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    if (isSubmitTransactionSuccess) {
+        resetForm();
+        // Auto-clear success message after 3 seconds
+        setTimeout(() => {
+            setSuccess(false);
+        }, 3000);
+        //TODO refresh transaction list
+    }
+
     return (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Submit New Transaction</h3>
-                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+        <div className="bg-[#256e41] border-10 border-[#FBB701] shadow-md shadow-gray-600 rounded-4xl p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-zinc-100">Submit New Transaction</h3>
+                <BanknoteArrowUp size={26} className="text-[#FBB701]" />
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Success Message */}
-                {success && (
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <div className="flex items-center text-green-800 text-sm">
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            Transaction submitted successfully!
+                {
+                    isSubmitTransactionSuccess && (
+                        <div className="p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                            <div className="flex items-center text-green-400 text-sm">
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Transaction submitted successfully!
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
                 {/* Error Message */}
-                {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-center text-red-800 text-sm">
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {error}
+                {
+                    error && (
+                        <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                            <div className="flex items-center text-red-400 text-sm">
+                                <AlertTriangle className="w-4 h-4 mr-2" />
+                                {error}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-center gap-4">
                     {/* Recipient Address */}
-                    <div>
-                        <label htmlFor="recipient" className="block text-sm font-medium text-gray-700 mb-1">
+                    <div className='w-[67%]'>
+                        <label htmlFor="recipient" className="block text-xs font-semibold text-gray-300 uppercase tracking-wide mb-1">
                             Recipient Address
                         </label>
                         <input
@@ -134,14 +131,14 @@ export function SubmitTransaction({ onTransactionSubmitted }: SubmitTransactionP
                             value={formData.recipient}
                             onChange={(e) => setFormData({ ...formData, recipient: e.target.value })}
                             placeholder="0x..."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors font-mono text-sm"
+                            className="w-full px-3 py-2 bg-[#202020]/70 border border-gray-600 rounded-lg text-gray-100 focus:ring-2 focus:ring-[#FBB701] focus:border-[#FBB701] transition-colors font-mono text-sm"
                             disabled={isSubmitting}
                         />
                     </div>
 
                     {/* Amount */}
-                    <div>
-                        <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
+                    <div className='w-[33%]'>
+                        <label htmlFor="amount" className="block text-xs font-semibold text-gray-300 uppercase tracking-wide mb-1">
                             Amount (Tokens)
                         </label>
                         <input
@@ -152,44 +149,42 @@ export function SubmitTransaction({ onTransactionSubmitted }: SubmitTransactionP
                             placeholder="0.0"
                             step="any"
                             min="0"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            className="w-full px-3 py-2 bg-[#202020]/70 border border-gray-600 rounded-lg text-gray-100 focus:ring-2 focus:ring-[#FBB701] focus:border-[#FBB701] transition-colors"
                             disabled={isSubmitting}
                         />
                     </div>
                 </div>
 
                 {/* Info Box */}
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="p-3 bg-zinc-900/20 border border-zinc-500/60 rounded-lg">
                     <div className="flex items-start">
-                        <svg className="w-4 h-4 text-blue-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div className="text-sm text-blue-800">
+                        <Info className="w-4 h-4 text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
+                        <div className="text-sm text-zinc-300">
                             <p>Other owners will need to confirm this transaction before it can be executed.</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Submit Button */}
-                <div className="flex justify-end">
+                <div className="flex justify-end pt-2">
                     <button
                         type="submit"
-                        disabled={isSubmitting}
-                        className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                        disabled={submitTransactionStatus === 'pending' || isSubmitting}
+                        className="cursor-pointer px-6 py-2 bg-[#FBB701] text-black rounded-lg hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center font-semibold"
                     >
-                        {isSubmitting ? (
-                            <>
-                                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                                Submitting...
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                                Submit Transaction
-                            </>
-                        )}
+                        {
+                            isSubmitting || submitTransactionStatus === 'pending' ? (
+                                <>
+                                    <Loader className="animate-spin w-4 h-4 mr-2" />
+                                    Submitting...
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="w-4 h-4 mr-2" />
+                                    Submit Transaction
+                                </>
+                            )
+                        }
                     </button>
                 </div>
             </form>

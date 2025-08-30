@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Abi, Address, formatUnits } from 'viem';
 
 import { MULTISIG_CONTRACT_ADDRESS, MULTISIG_ABI } from '@/lib/contract';
@@ -55,40 +55,40 @@ export function MultisigBalance() {
                 eventName: 'Deposit',
                 batch: true,
                 onLogs: (logs) => {
-                    console.log('New logs Deposit!', logs);
+                    console.log('New Deposit', logs);
+                    console.log('Refetching token balance...');
+                    notify('success', 'Deposit detected, balance updated.', { position: 'top-right' })
                     setTimeout(() => {
-                        console.log('Refetching token balance...');
-                        notify('success', 'Deposit detected, balance updated.');
-                        refetchTokenBalance();
-                    }, 1000)
+                        refetchTokenBalance()
+                    }, 1500)
                 },
             }
         );
 
         return () => unwatch();
-    }, [refetchTokenBalance, tokenBalanceData, tokenData]);
+    }, [notify, refetchTokenBalance, tokenBalanceData, tokenData]);
 
     const refetchTokenBalanceFunc = async () => {
         console.log("refetchTokenBalanceFunc called");
         try {
             await refetchTokenBalance();
-            notify('success', 'Balance refreshed!');
+            notify('success', 'Balance refreshed!', { position: 'bottom-right' });
         } catch (error) {
             console.error("Error refetching balance:", error);
-            notify('error', 'Failed to refresh balance.');
+            notify('error', 'Failed to refresh balance.', { position: 'top-right' });
         }
     }
 
     if (tokenError) {
-        notify('error', 'Error fetching token address.');
+        notify('error', 'Error fetching token address.', { position: 'top-right' });
     }
 
     if (tokenBalanceError) {
-        notify('error', 'Error fetching token balance.');
+        notify('error', 'Error fetching token balance.', { position: 'top-right' });
     }
 
     return (
-        <div className="bg-[#202020] border border-[#FBB701]/30 rounded-2xl p-6 shadow-md hover:shadow-lg transition-shadow">
+        <div className="bg-[#202020] shadow-md shadow-gray-600 border-[#FBB701]/30 rounded-3xl p-6 hover:shadow-lg transition-shadow">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-[#FBB701]">Multisig Balance</h3>
@@ -107,24 +107,10 @@ export function MultisigBalance() {
                     <div className="mb-5">
                         <div className="text-4xl font-extrabold text-white tracking-tight">
                             {parseFloat(balance || '0').toLocaleString()}
-                            <span className="font-medium text-2xl text-gray-300 ml-4">cCop</span>
+                            <span className="font-medium text-2xl text-gray-300 ml-4">cCOP</span>
                         </div>
 
                         {/* Visual balance indicator (progress-like) */}
-                        <div className="mt-2 w-full bg-gray-700 rounded-full h-2 overflow-hidden">
-                        <div
-                            className={`
-                                h-2 rounded-full transition-all duration-500 ${
-                                balance && parseFloat(balance) > 0 ? 'bg-[#1E8847]' : 'bg-gray-500'
-                            }`}
-                            style={{
-                                width: `${Math.min(
-                                    100,
-                                    parseFloat(balance || '0') / 100
-                                )}%`, // simulado
-                            }}
-                        ></div>
-                        </div>
                     </div>
                 )
             }

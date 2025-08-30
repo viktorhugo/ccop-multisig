@@ -2,7 +2,7 @@
 "use client";
 
 import { createContext, useContext, ReactNode } from "react";
-import { toast } from "sonner";
+import { ExternalToast, toast } from "sonner";
 import {
   CheckCircle2,
   X,
@@ -18,6 +18,7 @@ export interface NotifyOptions {
   description?: ReactNode;
   duration?: number; // ms (use Infinity for persistent)
   action?: { label: string; onClick: () => void };
+  position?: ExternalToast["position"]; // 👈 reutilizamos el tipo oficial de sonner
 }
 
 interface NotifyContextValue {
@@ -34,7 +35,12 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
   const notify = (
     type: ToastType,
     title: ReactNode,
-    { description, duration = 4000, action }: NotifyOptions = {}
+    { 
+      description, 
+      duration = 6000, 
+      action, 
+      position 
+    }: NotifyOptions = {}
   ) => {
     const base =
       "flex items-start gap-3 p-4 rounded-xl shadow-2xl border w-full max-w-md";
@@ -63,12 +69,14 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <div className="font-semibold truncate">{title}</div>
-                {description && (
-                  <div className="mt-1 text-sm opacity-90 truncate">
-                    {description}
-                  </div>
-                )}
+                <div className="text-sm truncate">{title}</div>
+                {
+                  description && (
+                    <div className="mt-1 text-sm opacity-90 truncate">
+                      { typeof(description) === 'string' ? description.substring(0, 50) : description }
+                    </div>
+                  )
+                }
               </div>
 
               <div className="flex items-center gap-2 ml-4">
@@ -102,6 +110,7 @@ export function NotifyProvider({ children }: { children: ReactNode }) {
       ),
       {
         duration: duration,
+        position: position || "bottom-right",
       }
     );
     return id;

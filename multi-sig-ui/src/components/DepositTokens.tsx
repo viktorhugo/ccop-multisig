@@ -2,99 +2,106 @@
 
 import { useState } from 'react';
 import { Abi, Address, parseUnits } from 'viem';
-import { getWalletClient, publicClient } from '@/lib/viem';
 import { MULTISIG_CONTRACT_ADDRESS, MULTISIG_ABI } from '@/lib/contract';
 import { cCOP_ABI } from '@/abi/cCOPABI';
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { config } from '@/config';
 import { useNotify } from '@/context/NotifyContext';
+import { AlertTriangle, CheckCircle, ChevronsRight, Info, Loader, PlusCircle } from 'lucide-react';
 
 export function DepositTokens() {
 
     const { address: userAddress } = useAccount();
     const { notify } = useNotify();
     
-
     const [amount, setAmount] = useState('');
-    const [isDepositing, setIsDepositing] = useState(false);
-    const [isApproving, setIsApproving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [needsApproval, setNeedsApproval] = useState(false);
+    const [logicError, setLogicError] = useState<string | null>(null);
+
 
     const resetForm = () => {
         setAmount('');
-        setError(null);
+        resetApprove();
+        resetDeposit();
+        refetchAllowanceFunc();
         setNeedsApproval(false);
     };
 
     // read contract for get address token
-    const { data: tokenAddress, isLoading: tokenAddressLoading, error: tokenAddressError } = useReadContract({
+    const { data: tokenAddress } = useReadContract({
         abi: MULTISIG_ABI as Abi,
         address: MULTISIG_CONTRACT_ADDRESS as Address,
         functionName: "token",
         config,
     });
-    console.log("Token Address Data:", tokenAddress, "Loading:", tokenAddressLoading, "Error:", tokenAddressError);
 
     // read contract for get address token
-    const { data: allowance, isLoading: allowanceLoading, error: allowanceError, refetch: refetchAllowance } = useReadContract({
+    const { data: allowance, refetch: refetchAllowance } = useReadContract({
         abi: cCOP_ABI,
         address: tokenAddress as Address,
         functionName: 'allowance',
         args: [userAddress as Address, MULTISIG_CONTRACT_ADDRESS],
         config,
     });
-    console.log("Allowance Data:", allowance, "Loading:", allowanceLoading, "Error:", allowanceError);
 
-    // For deposit on the vault
+    // For deposit on the multisig contract
     const {
         data: depositHash,
         isPending: isDepositPending,
         writeContract: makeDeposit,
         status: depositStatus,
         error: depositError,
+        reset: resetDeposit,
     } = useWriteContract();
 
     const { isSuccess: isDepositSuccess } = useWaitForTransactionReceipt({
         hash: depositHash,
     })
-    
+    console.log("Deposit Status:", depositStatus, "Error:", depositError);
 
-    const checkAllowance = async (amountInWei: bigint) => {
-        return allowance as bigint  >= amountInWei;
+    // For approve the multisig contract to spend tokens
+    const {
+        data: approveHash,
+        isPending: isApprovePending,
+        writeContract: approveDeposit,
+        status: approveStatus,
+        error: approveError,
+        reset: resetApprove,
+    } = useWriteContract();
+
+    const { isSuccess: isApproveSuccess } = useWaitForTransactionReceipt({
+        hash: approveHash,
+    })
+    // console.log("Approve Status:", approveStatus, "Error:", approveError);
+    
+    // Check if we have enough allowance
+    const checkAllowance = (amountInWei: bigint) => {
+        const res = allowance as bigint  >= amountInWei;
+        console.log("Check Allowance:", res, "Needed:", amountInWei, "Have:", allowance);
+        return res;
     };
 
+    // Function to refetch allowance
     const refetchAllowanceFunc = async () => {
         await refetchAllowance();
+        console.log('allowance', allowance);
+        
     }
-
-
+    // Approve function
     const handleApprove = async () => {
-        setError(null);
-        setIsApproving(true);
 
         try {
             const amountValue = parseFloat(amount);
             if (isNaN(amountValue) || amountValue <= 0) {
                 throw new Error('Please enter a valid amount greater than 0');
             }
-
+            
             const amountInWei = parseUnits(amount, 18);
-            const walletClient = getWalletClient();
 
-            if (!userAddress) {
-                throw new Error('Please connect your wallet first');
-            }
-
-            // Get token address from contract
-            const tokenAddress = await publicClient.readContract({
-                address: MULTISIG_CONTRACT_ADDRESS,
-                abi: MULTISIG_ABI,
-                functionName: 'token',
-            }) as string;
+            if (!userAddress) throw new Error('Please connect your wallet first');
 
             // Approve the multisig contract to spend tokens
-            const hash = await walletClient.writeContract({
+            await approveDeposit({
                 address: tokenAddress as Address,
                 abi: cCOP_ABI,
                 functionName: 'approve',
@@ -102,20 +109,16 @@ export function DepositTokens() {
                 account: userAddress as Address,
             });
 
-            console.log('Approval transaction hash:', hash);
-            setNeedsApproval(false);
+            // setNeedsApproval(false);
         } catch (err) {
             console.error('Error approving tokens:', err);
-            setError(err instanceof Error ? err.message : 'Failed to approve tokens');
-        } finally {
-            setIsApproving(false);
+            setLogicError(err instanceof Error ? err.message : 'Failed to approve tokens');
+            setTimeout(() => setLogicError(null), 10000); // Clear logic error after 10 seconds
         }
     };
 
     const handleDeposit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(null);
-        setIsDepositing(true);
 
         try {
             // Validation
@@ -135,9 +138,9 @@ export function DepositTokens() {
             // Check if we have enough allowance
             await refetchAllowanceFunc();
 
-            if (!checkAllowance(amountInWei)) {
+            if (!checkAllowance(amountInWei)) { 
                 setNeedsApproval(true);
-                setIsDepositing(false);
+                console.log("Needs approval to proceed");
                 return;
             }
 
@@ -152,64 +155,79 @@ export function DepositTokens() {
             //IF success
             if (isDepositSuccess) {
                 resetForm();
-                notify('success', 'Tokens deposited successfully!');
+                notify('success', 'Tokens deposited successfully!', { position: 'top-right' });
             }
 
             console.log('Deposit transaction hash:', depositHash);
         } catch (err) {
             console.error('Error depositing tokens:', err);
-            setError(err instanceof Error ? err.message : 'Failed to deposit tokens');
-        } finally {
-            setIsDepositing(false);
+            setLogicError(err instanceof Error ? err.message : 'Failed to deposit tokens');
+            setTimeout(() => setLogicError(null), 10000); // Clear logic error after 10 seconds
         }
     };
 
+    if (approveError) {
+        notify('error', `Approval Error: ${approveError.message}`, { position: 'top-right' });
+    }
+
+    if (depositError) {
+        notify('error', `Approval Error: ${depositError.message}`, { position: 'top-right' });
+    }
+
+    if (isApproveSuccess) {
+        // set time to refetch allowance
+        setTimeout(() => refetchAllowanceFunc(), 1500)
+    }
+
+    if (isDepositSuccess) {
+        // Clear logic error after 1.5 seconds
+        setTimeout(() => resetForm(), 1500);
+    }
     
     return (
         
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Deposit Tokens</h3>
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
+        <div className="bg-[#202020] shadow-md shadow-gray-600 border-[#FBB701]/30 rounded-3xl p-6 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-[#FBB701]">Deposit Tokens</h3>
+                <PlusCircle size={24} className="text-[#FBB701]" />
             </div>
 
             <form onSubmit={handleDeposit} className="space-y-4">
                 {/* Success Message */}
-                {
-                    // success && (
-                    //     <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    //         <div className="flex items-center text-green-800 text-sm">
-                    //             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    //                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    //             </svg>
-                    //             Tokens deposited successfully!
-                    //         </div>
-                    //     </div>
-                    // )
-                }
+                {isDepositSuccess && (
+                    <div className="p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                        <div className="flex items-center text-green-400 text-sm">
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Tokens deposited successfully!
+                        </div>
+                    </div>
+                )}
+                
+                {isApproveSuccess && (
+                    <div className="p-3 bg-green-900/20 border border-green-500/30 rounded-lg">
+                        <div className="flex items-center text-green-400 text-sm">
+                            <CheckCircle className="w-4 h-4 mr-2" />
+                            Approval successful! Ready to deposit.
+                        </div>
+                    </div>
+                )}
 
                 {/* Error Message */}
-                {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <div className="flex items-center text-red-800 text-sm">
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {error}
+                {logicError && (
+                    <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                        <div className="flex items-center text-red-400 text-sm">
+                            <AlertTriangle className="w-4 h-4 mr-2" />
+                            {logicError}
                         </div>
                     </div>
                 )}
 
                 {/* Approval Needed Message */}
-                {needsApproval && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                {needsApproval && approveStatus !== 'success' && (
+                    <div className="p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
                         <div className="flex items-start">
-                            <svg className="w-4 h-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <div className="text-sm text-yellow-800">
+                            <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 mr-2 flex-shrink-0" />
+                            <div className="text-sm text-yellow-300">
                                 <p className="font-medium">Approval Required</p>
                                 <p>You need to approve the multisig contract to spend your tokens first.</p>
                             </div>
@@ -219,7 +237,7 @@ export function DepositTokens() {
 
                 {/* Amount Input */}
                 <div>
-                    <label htmlFor="deposit-amount" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="deposit-amount" className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
                         Amount (Tokens)
                     </label>
                     <input
@@ -230,42 +248,38 @@ export function DepositTokens() {
                         placeholder="0.0"
                         step="any"
                         min="0"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                        disabled={isDepositing || isApproving}
+                        className="w-full px-3 py-2 bg-[#202020]/70 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-[#FBB701] focus:border-[#FBB701] transition-colors"
+                        disabled={isDepositPending || isApprovePending}
                     />
                 </div>
 
                 {/* Info Box */}
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
                     <div className="flex items-start">
-                        <svg className="w-4 h-4 text-green-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div className="text-sm text-green-800">
+                        <Info className="w-4 h-4 text-blue-400 mt-0.5 mr-2 flex-shrink-0" />
+                        <div className="text-sm text-blue-300">
                             <p>Deposit tokens to make them available for multisig transactions.</p>
                         </div>
                     </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex space-x-3">
+                <div className="flex space-x-3 pt-2">
                     {needsApproval && (
                         <button
                             type="button"
                             onClick={handleApprove}
-                            disabled={isApproving}
-                            className="flex-1 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                            disabled={approveStatus === 'pending' || approveStatus === 'success'}
+                            className="cursor-pointer flex-1 px-4 py-2 bg-[#FBB701] text-black rounded-lg hover:bg-[#FBB701] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center font-semibold"
                         >
-                            {isApproving ? (
+                            {approveStatus === 'pending' ? (
                                 <>
-                                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                                    <Loader className="animate-spin w-4 h-4 mr-2" />
                                     Approving...
                                 </>
                             ) : (
                                 <>
-                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
+                                    <ChevronsRight className="w-4 h-4 mr-2" />
                                     Approve Tokens
                                 </>
                             )}
@@ -274,19 +288,17 @@ export function DepositTokens() {
 
                     <button
                         type="submit"
-                        disabled={isDepositing || isApproving || needsApproval}
-                        className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                        disabled={approveStatus === 'pending' || depositStatus === 'pending' || !amount || parseFloat(amount) <= 0 || (needsApproval && !isApproveSuccess)}
+                        className="cursor-pointer flex-1 px-4 py-2 bg-[#FBB701] text-black rounded-lg hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center font-semibold"
                     >
-                        {isDepositing ? (
+                        {depositStatus === 'pending' ? (
                             <>
-                                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                                <Loader className="animate-spin w-4 h-4 mr-2" />
                                 Depositing...
                             </>
                         ) : (
                             <>
-                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
+                                <PlusCircle className="w-4 h-4 mr-2" />
                                 Deposit Tokens
                             </>
                         )}
