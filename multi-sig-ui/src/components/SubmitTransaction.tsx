@@ -5,6 +5,7 @@ import { parseUnits, isAddress, Address } from 'viem';
 import { MULTISIG_CONTRACT_ADDRESS, MULTISIG_ABI } from '@/lib/contract';
 import { AlertTriangle, BanknoteArrowUp, CheckCircle, Info, Loader, Send } from 'lucide-react';
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { useNotify } from '@/context/NotifyContext';
 
 
 export function SubmitTransaction() {
@@ -15,7 +16,7 @@ export function SubmitTransaction() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState(false);
+    const { notify } = useNotify();
 
     const resetForm = () => {
         setFormData({ recipient: '', amount: '' });
@@ -39,7 +40,6 @@ export function SubmitTransaction() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
-        setSuccess(false);
         setIsSubmitting(true);
 
         try {
@@ -80,11 +80,11 @@ export function SubmitTransaction() {
 
     if (isSubmitTransactionSuccess) {
         resetForm();
-        // Auto-clear success message after 3 seconds
-        setTimeout(() => {
-            setSuccess(false);
-        }, 3000);
         //TODO refresh transaction list
+    }
+
+    if (submitTransactionError) {
+        notify('error', `Approval Error: ${submitTransactionError.message}`, { position: 'top-right' });
     }
 
     return (
@@ -110,10 +110,10 @@ export function SubmitTransaction() {
                 {/* Error Message */}
                 {
                     error && (
-                        <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
-                            <div className="flex items-center text-red-400 text-sm">
+                        <div className="p-3 bg-red-500 border border-red-500 rounded-lg">
+                            <div className="flex items-center text-white text-sm">
                                 <AlertTriangle className="w-4 h-4 mr-2" />
-                                {error}
+                                { error }
                             </div>
                         </div>
                     )
@@ -169,7 +169,15 @@ export function SubmitTransaction() {
                 <div className="flex justify-end pt-2">
                     <button
                         type="submit"
-                        disabled={submitTransactionStatus === 'pending' || isSubmitting}
+                        disabled={
+                            submitTransactionStatus === 'pending' 
+                            || isSubmitting 
+                            || formData.recipient === '' 
+                            || formData.amount === '' 
+                            || !isAddress(formData.recipient) 
+                            || isNaN(parseFloat(formData.amount)) 
+                            || parseFloat(formData.amount) <= 0
+                        }
                         className="cursor-pointer px-6 py-2 bg-[#FBB701] text-black rounded-lg hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center font-semibold"
                     >
                         {

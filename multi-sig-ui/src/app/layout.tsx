@@ -5,6 +5,7 @@ import ContextReownAppKitProvider from "@/context/ReownAppKit";
 import { headers } from "next/headers";
 import { NotifyProvider } from "@/context/NotifyContext";
 import { Toaster } from "sonner";
+import QueryProviders from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,7 +39,9 @@ export default async function RootLayout({
         <ContextReownAppKitProvider cookies={cookies}>
           <NotifyProvider>
             <Toaster closeButton />
-            {children}
+            <QueryProviders>
+                {children}
+            </QueryProviders>
           </NotifyProvider>
         </ContextReownAppKitProvider>
       </body>

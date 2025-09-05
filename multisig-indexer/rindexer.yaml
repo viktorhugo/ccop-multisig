@@ -1,0 +1,30 @@
+name: Multisig Indexer
+description: Multisig indexer
+project_type: no-code
+config: {}
+networks:
+- name: alfajores
+  chain_id: 44787
+  rpc: https://alfajores-forno.celo-testnet.org 
+storage:
+  postgres:
+    enabled: true
+  csv:
+    enabled: true
+    path: ./generated_csv
+native_transfers:
+  enabled: false
+contracts:
+- name: SimpleERC20Multisig
+  details:
+  - network: alfajores
+    address: 0x634dCe9E1F51dC03aE6446eCEA862b941f1016CE
+    start_block: '55362784'
+  abi: ./abis/SimpleERC20Multisig.abi.json
+  include_events:
+  - Deposit
+  - SubmitTransaction
+  - ConfirmTransaction
+  - ExecuteTransaction
+graphql:
+  port: 4001

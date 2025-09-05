@@ -1,8 +1,9 @@
 import { multiSigABI } from "@/abi/SimpleERC20Multisig";
+import { IndexerTransaction } from "@/app/interfaces/indexer";
 import { Address } from "viem";
 
 // Contract configuration
-export const MULTISIG_CONTRACT_ADDRESS = "0x634dCe9E1F51dC03aE6446eCEA862b941f1016CE" as Address;
+export const MULTISIG_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_MULTISIG_CONTRACT_ADDRESS as Address;
 
 // Import ABI from local file with fallback
 // Users need to copy their compiled ABI to src/abi/SimpleERC20Multisig.json
@@ -11,7 +12,7 @@ const MULTISIG_ABI = multiSigABI;
 export { MULTISIG_ABI };
 
 // Transaction structure matching the contract
-export interface Transaction {
+export interface TransactionContract {
     to: string;
     amount: bigint;
     executed: boolean;
@@ -19,8 +20,23 @@ export interface Transaction {
 }
 
 // Enhanced transaction data with additional UI info
-export interface TransactionWithId extends Transaction {
+export interface TransactionWithId extends TransactionContract {
     id: number;
     status: 'pending' | 'executed';
     formattedAmount: string;
+}
+
+export interface FullIndexerTransaction extends TransactionWithId {
+    nodeId:          string;
+    rindexerId:      number;
+    contractAddress: string;
+    owner:          string;
+    txId:           string;
+    txHash:          string;
+    blockNumber:     string;
+    blockHash:       string;
+    network:         string;
+    txIndex:         string;
+    logIndex:        string;
+    to:             string;
 }
